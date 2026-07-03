@@ -1,3 +1,4 @@
+import { supabase } from "./supabase";
 import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -41,36 +42,73 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       cities: {},
       roteiros: [],
-      meta: { startDate: new Date().toISOString().slice(0, 10), manualKm: 0 },
+      meta: {
+        startDate: new Date().toISOString().slice(0, 10),
+        manualKm: 0,
+      },
 
       getCity: (id) => get().cities[id] ?? emptyCity(),
 
       updateCity: (id, patch, historyText) =>
         set((s) => {
           const cur = s.cities[id] ?? emptyCity();
-          const next: CityData = { ...cur, ...patch };
-          if (historyText) next.history = [hist(historyText), ...cur.history].slice(0, 50);
-          return { cities: { ...s.cities, [id]: next } };
-        }),
 
-      setStatus: (id, status, name) =>
-        set((s) => {
-          const cur = s.cities[id] ?? emptyCity();
+          const next: CityData = {
+            ...cur,
+            ...patch,
+          };
+
+          if (historyText) {
+            next.history = [
+              hist(historyText),
+              ...cur.history,
+            ].slice(0, 50);
+          }
+
           return {
             cities: {
               ...s.cities,
-              [id]: {
-                ...cur,
-                status,
-                history: [hist(`Status alterado para "${status}"`), ...cur.history].slice(0, 50),
-              },
+              [id]: next,
             },
           };
         }),
 
+      setStatus: (id, status, name) => {
+  const cur = get().cities[id] ?? emptyCity();
+
+  const updated = {
+    ...cur,
+    status,
+    history: [
+      hist(`Status alterado para "${status}"`),
+      ...cur.history,
+    ].slice(0, 50),
+  };
+
+  // 1. Atualiza Zustand (UI imediata)
+  set((s) => ({
+    cities: {
+      ...s.cities,
+      [id]: updated,
+    },
+  }));
+
+  // 2. Salva no Supabase (fora do set)
+  supabase.from("cities").upsert({
+    id,
+    status,
+    updated_at: new Date().toISOString(),
+  }).then(({ error }) => {
+    if (error) {
+      console.error("Erro Supabase:", error);
+    }
+  });
+},
+
       toggleCheck: (id, itemId) =>
         set((s) => {
           const cur = s.cities[id] ?? emptyCity();
+
           return {
             cities: {
               ...s.cities,
@@ -86,20 +124,43 @@ export const useStore = create<StoreState>()(
 
       addRoteiro: (name) => {
         const id = uuidv4();
-        set((s) => ({ roteiros: [...s.roteiros, { id, name, cityIds: [] }] }));
+
+        set((s) => ({
+          roteiros: [
+            ...s.roteiros,
+            {
+              id,
+              name,
+              cityIds: [],
+            },
+          ],
+        }));
+
         return id;
       },
 
       updateRoteiro: (id, patch) =>
         set((s) => ({
-          roteiros: s.roteiros.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+          roteiros: s.roteiros.map((r) =>
+            r.id === id ? { ...r, ...patch } : r
+          ),
         })),
 
       removeRoteiro: (id) =>
-        set((s) => ({ roteiros: s.roteiros.filter((r) => r.id !== id) })),
+        set((s) => ({
+          roteiros: s.roteiros.filter((r) => r.id !== id),
+        })),
 
-      setMeta: (patch) => set((s) => ({ meta: { ...s.meta, ...patch } })),
+      setMeta: (patch) =>
+        set((s) => ({
+          meta: {
+            ...s.meta,
+            ...patch,
+          },
+        })),
     }),
-    { name: "xhakinha-sc-v1" },
-  ),
+    {
+      name: "xhakinha-sc-v1",
+    }
+  )
 );
