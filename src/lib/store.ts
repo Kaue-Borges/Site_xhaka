@@ -1,7 +1,8 @@
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
+import { DEMO_MODE } from "./demo";
 import { v4 as uuidv4 } from "uuid";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import {
   type CityData,
   type CityStatus,
@@ -37,10 +38,25 @@ function hist(text: string) {
   };
 }
 
+// The demo never reads or writes the real localStorage snapshot. Reloading
+// starts with these clearly fictitious examples again.
+const demoStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
+
+const demoCities: Record<string, CityData> = {
+  "4200051": { ...emptyCity(), status: "done", description: "Parada fictícia para explorar a demonstração." },
+  "4200101": { ...emptyCity(), status: "recording" },
+  "4200200": { ...emptyCity(), status: "planned" },
+  "4200309": { ...emptyCity(), status: "prep" },
+};
+
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
-      cities: {},
+      cities: DEMO_MODE ? demoCities : {},
       roteiros: [],
       meta: {
         startDate: new Date().toISOString().slice(0, 10),
@@ -74,36 +90,34 @@ export const useStore = create<StoreState>()(
         }),
 
       setStatus: (id, status, name) => {
-  const cur = get().cities[id] ?? emptyCity();
+        const cur = get().cities[id] ?? emptyCity();
+        set((s) => ({
+          cities: {
+            ...s.cities,
+            [id]: {
+              ...cur,
+              status,
+              history: [hist(`Status de ${name} alterado para "${status}"`), ...cur.history].slice(0, 50),
+            },
+          },
+        }));
 
-  const updated = {
-    ...cur,
-    status,
-    history: [
-      hist(`Status alterado para "${status}"`),
-      ...cur.history,
-    ].slice(0, 50),
-  };
-
-  // 1. Atualiza Zustand (UI imediata)
-  set((s) => ({
-    cities: {
-      ...s.cities,
-      [id]: updated,
-    },
-  }));
-
-  // 2. Salva no Supabase (fora do set)
-  supabase.from("cities").upsert({
-    id,
-    status,
-    updated_at: new Date().toISOString(),
-  }).then(({ error }) => {
-    if (error) {
-      console.error("Erro Supabase:", error);
-    }
-  });
-},
+        if (DEMO_MODE) return;
+        const supabase = getSupabase();
+        if (!supabase) return;
+        void (async () => {
+          try {
+            const { error } = await supabase.from("cities").upsert({
+              id,
+              status,
+              updated_at: new Date().toISOString(),
+            });
+            if (error) console.error("Não foi possível salvar o status da cidade:", error);
+          } catch (error) {
+            console.error("Não foi possível conectar ao banco de dados:", error);
+          }
+        })();
+      },
 
       toggleCheck: (id, itemId) =>
         set((s) => {
@@ -161,6 +175,7 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "xhakinha-sc-v1",
+      storage: createJSONStorage(() => DEMO_MODE ? demoStorage : localStorage),
     }
   )
 );

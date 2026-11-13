@@ -53,9 +53,9 @@ function Roteirizador() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col lg:h-screen lg:flex-row">
-      <div className="flex w-full flex-col border-b border-border lg:w-96 lg:border-b-0 lg:border-r">
-        <div className="border-b border-border p-5">
+    <div className="planner-page flex min-h-[calc(100dvh-3.5rem)] flex-col lg:h-screen lg:flex-row">
+      <div className="planner-sidebar relative flex h-[54dvh] min-h-[420px] w-full flex-none flex-col overflow-hidden border-b border-border lg:h-auto lg:min-h-0 lg:w-96 lg:border-b-0 lg:border-r">
+        <div className="planner-controls border-b border-border p-5">
           <h1 className="font-display text-xl font-semibold">Roteirizador inteligente</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Selecione cidades e otimize a ordem de visita.
@@ -91,7 +91,7 @@ function Roteirizador() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="planner-list flex-1 overflow-y-auto p-4">
           {selected.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma cidade selecionada.
@@ -118,7 +118,7 @@ function Roteirizador() {
         </div>
 
         {selected.length > 1 && (
-          <div className="space-y-3 border-t border-border p-4">
+          <div className="planner-metrics space-y-3 border-t border-border p-4">
             <div className="grid grid-cols-2 gap-3">
               <Metric icon={Gauge} label="Distância" value={`${distance} km`} />
               <Metric icon={Clock} label="Tempo est." value={`${Math.floor(hours)}h${String(Math.round((hours % 1) * 60)).padStart(2, "0")}`} />
@@ -133,7 +133,7 @@ function Roteirizador() {
         )}
       </div>
 
-      <div className="flex-1">
+      <div className="h-[58dvh] min-h-[420px] w-full flex-none lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1">
         <SCMap
           className="h-full w-full"
           routeCities={selected}

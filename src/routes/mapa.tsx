@@ -40,16 +40,18 @@ function MapaPage() {
   const hasFilter = region !== "all" || status !== "all";
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] lg:h-screen">
+    <div className="relative flex h-[calc(100dvh-3.5rem)] min-h-[560px] lg:h-screen">
       <div className="relative flex-1">
         {/* search + filters overlay */}
-        <div className="absolute left-4 right-4 top-4 z-[500] flex flex-col gap-2 sm:right-auto sm:w-80">
+        <div className="absolute left-3 right-3 top-3 z-[500] flex flex-col gap-2 sm:left-5 sm:right-auto sm:top-5 sm:w-80">
+          <div className="w-fit rounded-full border border-primary/30 bg-[#10261edb] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.18em] text-primary backdrop-blur">MAPA INTERATIVO · {sc?.cities.length ?? 295} MUNICÍPIOS</div>
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card/95 px-3 py-2 shadow-[var(--shadow-elegant)] backdrop-blur">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Pesquisar município..."
+              aria-label="Pesquisar município"
               className="w-full bg-transparent text-sm outline-none"
             />
             {query && (
@@ -114,7 +116,7 @@ function MapaPage() {
         </div>
 
         {/* legend */}
-        <div className="absolute bottom-4 left-4 z-[500] flex flex-wrap gap-x-4 gap-y-1.5 rounded-xl border border-border bg-card/95 px-3 py-2 text-xs shadow-[var(--shadow-elegant)] backdrop-blur">
+        <div className="absolute bottom-3 left-3 right-3 z-[500] flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl border border-border bg-card/95 px-3 py-2 text-[11px] shadow-[var(--shadow-elegant)] backdrop-blur sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[calc(100%-2.5rem)]">
           {STATUS_ORDER.map((s) => (
             <span key={s} className="flex items-center gap-1.5">
               <StatusDot status={s} />

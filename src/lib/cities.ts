@@ -33,7 +33,10 @@ let cache: Promise<SCGeo> | null = null;
 export function loadSC(): Promise<SCGeo> {
   if (cache) return cache;
   cache = fetch("/sc-municipios.geojson")
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`Falha ao carregar municípios: HTTP ${r.status}`);
+      return r.json();
+    })
     .then((geojson) => {
       const cities: CityInfo[] = geojson.features.map((f: any) => ({
         id: f.properties.id,
@@ -45,6 +48,10 @@ export function loadSC(): Promise<SCGeo> {
       const byId: Record<string, CityInfo> = {};
       cities.forEach((c) => (byId[c.id] = c));
       return { geojson, cities, byId };
+    })
+    .catch((error) => {
+      cache = null; // A próxima visita pode tentar de novo.
+      throw error;
     });
   return cache;
 }
@@ -53,7 +60,9 @@ export function useSC(): SCGeo | null {
   const [data, setData] = useState<SCGeo | null>(null);
   useEffect(() => {
     let alive = true;
-    loadSC().then((d) => alive && setData(d));
+    loadSC()
+      .then((d) => alive && setData(d))
+      .catch((error) => console.error("Não foi possível carregar o mapa de SC:", error));
     return () => {
       alive = false;
     };

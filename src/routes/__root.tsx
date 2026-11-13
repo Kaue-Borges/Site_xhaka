@@ -55,6 +55,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Tente atualizar a página ou volte ao início.
         </p>
+        {import.meta.env.DEV && (
+          <p className="mt-4 break-words rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-left font-mono text-xs text-destructive">
+            {error.message}
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {

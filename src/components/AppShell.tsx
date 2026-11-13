@@ -7,9 +7,10 @@ import {
   ListChecks,
   Clock,
   LogOut,
-  Mountain,
+  Compass,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { DEMO_MODE } from "@/lib/demo";
 import { LoginScreen } from "./LoginScreen";
 import { cn } from "@/lib/utils";
 
@@ -30,24 +31,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!user) return <LoginScreen />;
 
   return (
-    <div className="flex min-h-screen w-full bg-background text-foreground">
+    <div className="app-frame flex min-h-screen w-full bg-background text-foreground">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform lg:static lg:translate-x-0",
+          "app-sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform lg:static lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[image:var(--gradient-brand)] shadow-[var(--shadow-glow)]">
-            <Mountain className="h-5 w-5 text-primary-foreground" />
-          </div>
+        <div className="flex items-center gap-3 px-5 py-6">
+          <img src="/images/xhaka/avatar.webp" alt="Xhakinha" className="h-11 w-11 rounded-2xl border-2 border-primary/70 object-cover shadow-[var(--shadow-glow)]" />
           <div className="leading-tight">
-            <p className="font-display text-sm font-semibold">Xhakinha</p>
-            <p className="text-xs text-muted-foreground">por Santa Catarina</p>
+            <p className="font-display text-sm font-bold">Xhakinha<span className="text-primary">.</span></p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">por Santa Catarina</p>
           </div>
         </div>
 
+        <div className="mx-4 mb-5 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary"><Compass className="h-4 w-4" /> EXPEDIÇÃO SC</div>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Uma cidade de cada vez. Uma história em cada parada.</p>
+        </div>
+
         <nav className="flex-1 space-y-1 px-3 py-2">
+          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-muted-foreground">Explorar</p>
           {NAV.map((item) => {
             const active =
               item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
@@ -57,9 +62,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={item.to}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  "nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
                   active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    ? "bg-primary/12 text-primary"
                     : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 )}
               >
@@ -72,9 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-              {user.name.slice(0, 1)}
-            </div>
+            <img src="/images/xhaka/avatar.webp" alt="" className="h-9 w-9 rounded-full object-cover" />
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-sm font-medium">{user.name}</p>
               <p className="truncate text-xs capitalize text-muted-foreground">{user.role}</p>
@@ -108,8 +111,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="mt-1 block h-0.5 w-5 bg-foreground" />
             <span className="mt-1 block h-0.5 w-5 bg-foreground" />
           </button>
-          <span className="font-display text-sm font-semibold">Xhakinha SC</span>
+          <span className="font-display text-sm font-semibold">Xhakinha <span className="text-primary">SC</span></span>
         </header>
+        {DEMO_MODE && (
+          <div role="status" className="border-b border-primary/20 bg-primary/10 px-4 py-2 text-center text-xs font-medium text-primary">
+            Modo demonstração · dados fictícios · alterações descartadas ao recarregar
+          </div>
+        )}
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>
