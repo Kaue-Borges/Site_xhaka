@@ -1,9 +1,16 @@
 import { Compass, LockKeyhole } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth";
 import { DEMO_MODE } from "@/lib/demo";
 
 export function LoginScreen() {
   const enterDemo = useAuth((s) => s.enterDemo);
+  const login = useAuth((s) => s.login);
+  const loading = useAuth((s) => s.loading);
+  const error = useAuth((s) => s.error);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const submit = (event: FormEvent) => { event.preventDefault(); void login(email, password); };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
@@ -24,8 +31,17 @@ export function LoginScreen() {
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 text-primary"><LockKeyhole className="h-5 w-5" /><h2 className="font-display text-base font-semibold">Acesso temporariamente indisponível</h2></div>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">A autenticação da equipe aguarda a configuração do novo serviço. Nenhuma conta temporária pode acessar esta versão.</p>
+              <div className="flex items-center gap-2 text-primary"><LockKeyhole className="h-5 w-5" /><h2 className="font-display text-base font-semibold">Acesso da equipe</h2></div>
+              <form onSubmit={submit} className="mt-5 space-y-4">
+                <label className="block text-sm text-muted-foreground">E-mail
+                  <input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground" />
+                </label>
+                <label className="block text-sm text-muted-foreground">Senha
+                  <input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground" />
+                </label>
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                <button type="submit" disabled={loading} className="action-primary w-full rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-50">{loading ? "Entrando..." : "Entrar"}</button>
+              </form>
             </>
           )}
         </div>

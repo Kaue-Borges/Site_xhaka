@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { DEMO_MODE } from "@/lib/demo";
+import { useStore } from "@/lib/store";
 import { LoginScreen } from "./LoginScreen";
 import { cn } from "@/lib/utils";
 
@@ -25,8 +26,16 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
+  const loading = useAuth((s) => s.loading);
+  const authError = useAuth((s) => s.error);
+  const checkSession = useAuth((s) => s.checkSession);
+  const saveError = useStore((s) => s.saveError);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const [open, setOpen] = useState(false);
+
+  useEffect(() => { void checkSession(); }, [checkSession]);
+
+  if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando sessão...</div>;
 
   if (!user) return <LoginScreen />;
 
@@ -83,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <p className="truncate text-xs capitalize text-muted-foreground">{user.role}</p>
             </div>
             <button
-              onClick={logout}
+              onClick={() => { void logout(); }}
               className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               aria-label="Sair"
             >
@@ -118,6 +127,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             Modo demonstração · dados fictícios · alterações descartadas ao recarregar
           </div>
         )}
+        {saveError && <div role="alert" className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-center text-sm text-destructive">{saveError}</div>}
+        {authError && <div role="alert" className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-center text-sm text-destructive">{authError}</div>}
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>

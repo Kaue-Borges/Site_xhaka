@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth, canEdit } from "@/lib/auth";
-import { STATUS_META, STATUS_ORDER, type CityStatus, type CityData } from "@/lib/types";
+import { STATUS_META, STATUS_ORDER, type CityData, emptyCity } from "@/lib/types";
 import { StatusDot } from "./StatusBadge";
 import type { CityInfo } from "@/lib/cities";
 import {
@@ -72,11 +72,7 @@ export function CityPanel({
 }) {
   const role = useAuth((s) => s.user?.role);
   const editable = canEdit(role);
-  const data = useStore((s) => s.cities[city.id]) ?? {
-    status: "none" as CityStatus,
-    checklist: [],
-    history: [],
-  };
+  const data = useStore((s) => s.cities[city.id]) ?? emptyCity();
   const updateCity = useStore((s) => s.updateCity);
   const setStatus = useStore((s) => s.setStatus);
   const toggleCheck = useStore((s) => s.toggleCheck);

@@ -1,36 +1,57 @@
-# Preparação para MySQL na Hostinger
+# Migração para MySQL da Hostinger
 
-Este documento descreve o código atual. Nenhuma conexão ou tabela MySQL foi criada.
+## Inventário do projeto anterior
 
-## Dependências atuais do Supabase
+O login anterior usava credenciais fixas no frontend, sem Supabase Auth. Foi removido. O Supabase era usado apenas por `src/lib/store.ts` para `upsert` de `id`, `status` e `updated_at` na tabela `cities`; `src/lib/testsupabase.ts` fazia uma consulta diagnóstica não usada pela interface. As dependências `@supabase/supabase-js` e `@supabase/ssr` e ambos os arquivos foram removidos.
 
-| Local | Operação | Situação |
+Antes desta migração, detalhes das cidades, checklist, histórico, roteiros e métricas ficavam em `localStorage` (`xhakinha-sc-v1`). Esses dados **não são importados automaticamente**: o navegador pode conter rascunhos antigos ou exemplos, sem origem confiável. A chave antiga de autenticação também não é lida. Se houver dados reais apenas em um navegador, exporte e revise manualmente antes de qualquer importação futura. O banco MySQL novo começa sem dados operacionais.
+
+## Dados implementados
+
+| Tabela | Conteúdo e relações |
+| --- | --- |
+| `users` | E-mail único, nome, hash `scrypt`, papel `admin`/`editor`/`viewer`, ativo. |
+| `sessions` | Digest HMAC do token em cookie, usuário e expiração. FK para `users`. |
+| `login_attempts` | Falhas por combinação de IP e e-mail, chave HMAC e bloqueio temporário. |
+| `municipalities` | 295 IDs IBGE, nomes e regiões do GeoJSON estático. |
+| `city_records` | Status, datas, descrições, links, produção e notas. FK para `municipalities`. |
+| `city_checklist` | Itens ordenados por cidade, FK para `city_records`. |
+| `city_history` | Até 50 entradas por cidade usadas na interface, FK para cidade e usuário. |
+| `routes` / `route_cities` | Roteiros e municípios ordenados, com FKs e unicidade. |
+| `project_meta` | Data de início, quilômetros manuais e próxima gravação; uma linha. |
+| `schema_migrations` | Controle das migrations aplicadas pelo comando `db:migrate`. |
+
+O mapa continua a ler `public/sc-municipios.geojson`, sem salvar polígonos no MySQL. `migrations/001_initial.sql` cria o esquema; `migrations/002_municipalities_corrigido.sql` copia os 295 municípios reais como referência de chaves estrangeiras. O arquivo corrigido em UTF-8 é o mesmo importado manualmente na Hostinger e seus nomes, regiões e IDs foram conferidos com o GeoJSON. Não há registros fictícios de produção.
+
+`schema_migrations` é usado somente pelo comando manual `npm run db:migrate`. A API e o build não executam esse comando. Como as duas migrations já foram importadas pelo phpMyAdmin, não rode `db:migrate` nesse banco: a tabela de controle pode não refletir a importação manual e o comando tentaria aplicar os arquivos novamente. Para novas versões, revise e importe somente o SQL novo pelo phpMyAdmin, ou estabeleça primeiro um histórico de migrations consistente.
+
+## API e permissões
+
+| Método e rota | Finalidade | Papel |
 | --- | --- | --- |
-| `src/lib/supabase.ts` | Cria cliente com `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`, agora somente quando necessário | Retorna `null` sem configuração ou no modo demo |
-| `src/lib/store.ts` | `from("cities").upsert({ id, status, updated_at })` ao mudar status | Atualização da interface é imediata; falha remota é registrada e não derruba o React |
-| `src/lib/testsupabase.ts` | `from("cities").select("*").limit(1)` | Diagnóstico não chamado pelas rotas; retorna erro controlado sem cliente |
-| `package.json` | `@supabase/supabase-js` e `@supabase/ssr` | Dependências instaladas; `@supabase/ssr` não é usado pelo código atual |
+| `GET /api/health` | Verificar API e conexão MySQL | Público |
+| `GET /api/auth/me` | Recuperar sessão válida | Público |
+| `POST /api/auth/login` | Login com limitação de tentativas | Público |
+| `POST /api/auth/logout` | Revogar sessão | Sessão se houver |
+| `GET /api/state` | Cidades, roteiros e métricas | Qualquer usuário autenticado |
+| `PUT /api/cities/:id` | Salvar estado da cidade, checklist e histórico | `admin`, `editor` |
+| `PUT/DELETE /api/routes/:id` | Criar, editar ou remover roteiro | `admin`, `editor` |
+| `PUT /api/meta` | Salvar métricas | `admin`, `editor` |
+| `GET/POST /api/users` | Listar ou criar usuários | `admin` |
 
-O login anterior **não usava Supabase Auth**. Ele validava senhas fixas no cliente e persistia o usuário em `localStorage` (`xhakinha-auth-v1`). Esse mecanismo foi desativado; a chave antiga não é mais lida. Não existe implementação de `user_roles` no projeto.
+As alterações são validadas no servidor com Zod e gravadas em transações quando envolvem várias tabelas. O frontend atualiza a tela imediatamente e agrupa mudanças rápidas por recurso antes de salvar; ao sair, aguarda as gravações pendentes. Se a API falhar, recarrega o estado confirmado no banco e mostra uma mensagem. O demo usa apenas memória e não faz chamadas de escrita.
 
-## Dados que a aplicação usa
+## Segurança e operação
 
-| Recurso | Fonte atual | Campos/uso |
-| --- | --- | --- |
-| Municípios e geometria | `public/sc-municipios.geojson` | 295 IDs IBGE, nome, região e polígonos; a geometria pode continuar estática |
-| Cidade | Zustand + `localStorage` (`xhakinha-sc-v1`) | Status, datas, descrição, notas, links, restaurantes, hotéis, locais, atrações, contatos, checklist e histórico |
-| Roteiros | Mesmo estado local | ID, nome e lista ordenada de IDs de cidades |
-| Métricas do projeto | Mesmo estado local | Data inicial, quilômetros manuais e próxima gravação |
-| Sessão demo | Memória da aba | Usuário e quatro cidades fictícias; não lê nem grava `localStorage` |
+- Senhas usam `scrypt` com salt aleatório. Sessões usam tokens aleatórios cujo digest HMAC é armazenado no MySQL; o token puro fica somente no cookie HttpOnly. O cookie é `Secure` em produção, `SameSite=Lax`, e expira após sete dias. Logout revoga o token no banco.
+- A API exige HTTPS em produção, origem do mesmo domínio para operações de escrita e JSON. O proxy da Hostinger precisa enviar `X-Forwarded-Proto: https` para o Express. Não habilite CORS para outros domínios sem projeto específico de autenticação/CSRF.
+- Cinco falhas de login dentro de 15 minutos bloqueiam aquela combinação de IP e e-mail por 15 minutos. O banco deve ter backups; sessões expiradas e tentativas antigas podem ser limpas em rotina de manutenção futura.
+- Dados do banco e `SESSION_SECRET` são variáveis de servidor. Nenhum segredo usa `VITE_` ou entra no bundle. Configure `DB_HOST=127.0.0.1`, `DB_PORT=3306` e os valores reais fornecidos pela Hostinger; não os registre no Git.
+- O primeiro administrador é criado somente após as migrations, por SQL gerado com senha digitada em prompt oculto (`user:first-sql`) ou por CLI conectada ao banco (`user:first`). Não existe senha padrão.
+- O histórico atual é um registro de alterações visível e editável por usuários com papel de edição; ele não é um log de auditoria imutável.
 
-Hoje só o **status da cidade** tem escrita remota. Os outros dados ficam no navegador. Uma falha de escrita remota pode deixar o estado local diferente do banco; a futura API deve confirmar ou reverter alterações e mostrar o resultado ao usuário.
+## Testes e implantação
 
-## Trabalho necessário na migração
+Use um banco **isolado** para rodar migrations e testes de integração. Não execute comandos de teste contra o banco operacional. No projeto local: `npx tsc --noEmit`, `npm run build`, `npm run test:api`, `npm run lint`. A API pode ser testada localmente com `node --env-file=.env.server.local server/index.mjs` apontando para um MySQL isolado. Sem banco isolado disponível, os testes automatizados cobrem validação de acesso, hash de senha, entrega de rotas/arquivos e ausência do demo no build, mas não confirmam uma conexão MySQL real.
 
-1. Definir autenticação real no servidor, sessões seguras e permissões de `admin`, `editor` e `viewer`. A interface deve receber uma sessão validada pelo servidor; nenhuma senha ou credencial MySQL pode ir para variáveis `VITE_*` ou para o navegador.
-2. Definir tabelas para cidades/status e detalhes, itens de checklist, histórico, roteiros com ordem das cidades e métricas do projeto. Usar os IDs do GeoJSON como chave de referência e planejar chaves estrangeiras e índices.
-3. Criar uma API no servidor para leitura e atualização desses recursos. Validar entrada e permissões em cada operação, tratar indisponibilidade do banco e informar erros de salvamento na interface.
-4. Decidir se dados reais já guardados em `xhakinha-sc-v1` serão importados. Fazer revisão e migração explícitas; não importar os exemplos do modo demo nem confiar na antiga chave de autenticação.
-5. Substituir `getSupabase()` e o `upsert` em `store.ts` pela API, remover o diagnóstico Supabase e as dependências não usadas, e então habilitar o login de produção.
-
-As credenciais, o host, a forma de hospedagem da API e o esquema final dependem da configuração futura da Hostinger.
+Para configurar a Hostinger, siga [README.md](../README.md). Referências oficiais: [Node.js Web App na Hostinger](https://www.hostinger.com/support/how-to-deploy-a-nodejs-website-in-hostinger/) e [MySQL com Node.js na Hostinger](https://www.hostinger.com/support/connecting-a-hostinger-mysql-database-to-a-node-js-application/).

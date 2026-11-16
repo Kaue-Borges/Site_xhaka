@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useSC } from "@/lib/cities";
 import { useStore } from "@/lib/store";
+import { useAuth, canEdit } from "@/lib/auth";
 import { STATUS_META, STATUS_ORDER, REGIONS, type CityStatus } from "@/lib/types";
 import { STATUS_HEX } from "@/components/SCMap";
 import { StatusDot } from "@/components/StatusBadge";
@@ -17,6 +18,7 @@ function Dashboard() {
   const cities = useStore((s) => s.cities);
   const meta = useStore((s) => s.meta);
   const setMeta = useStore((s) => s.setMeta);
+  const editable = canEdit(useAuth((s) => s.user?.role));
   const [showLook, setShowLook] = useState(false);
 
   const stats = useMemo(() => {
@@ -136,6 +138,7 @@ function Dashboard() {
           value={meta.manualKm}
           suffix="km"
           onChange={(v) => setMeta({ manualKm: v })}
+          editable={editable}
         />
         <div className="rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -148,6 +151,7 @@ function Dashboard() {
             <input
               type="date"
               value={meta.startDate}
+              disabled={!editable}
               onChange={(e) => setMeta({ startDate: e.target.value })}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-ring"
             />
@@ -161,6 +165,7 @@ function Dashboard() {
           <input
             type="date"
             value={meta.nextRecording ?? ""}
+            disabled={!editable}
             onChange={(e) => setMeta({ nextRecording: e.target.value })}
             className="mt-3 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-ring"
           />
@@ -228,12 +233,14 @@ function MetricInput({
   value,
   suffix,
   onChange,
+  editable,
 }: {
   icon: any;
   label: string;
   value: number;
   suffix?: string;
   onChange: (v: number) => void;
+  editable: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-6">
@@ -245,6 +252,7 @@ function MetricInput({
         <input
           type="number"
           value={value}
+          disabled={!editable}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
           className="w-32 bg-transparent font-display text-3xl font-semibold outline-none"
         />
