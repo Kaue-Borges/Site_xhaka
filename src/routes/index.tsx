@@ -69,8 +69,10 @@ function Dashboard() {
         <div className="hero-portrait" aria-hidden="true"><img src="/images/xhaka/pose.webp" alt="" /></div>
       </section>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0">
       {/* main stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard icon={MapPinned} label="Municípios de SC" value={stats.total} accent="accent" />
         <StatCard icon={CheckCircle2} label="Concluídos" value={stats.done} accent="primary" />
         <StatCard icon={CircleDashed} label="Restantes" value={stats.remaining} />
@@ -100,6 +102,14 @@ function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
+      </div>
+
+      {/* expedition photo: shown whole (contain) over a blurred copy, so nothing is cropped */}
+      <figure className="expedition-photo relative h-80 overflow-hidden rounded-2xl border border-primary/20 bg-card sm:h-96 lg:h-auto lg:min-h-[320px]">
+        <img src="/images/xhaka/carro-mapa.webp" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-2xl" />
+        <img src="/images/xhaka/carro-mapa.webp" alt="Xhakinha em cima do carro da expedição" loading="lazy" className="absolute inset-0 h-full w-full object-contain" />
+      </figure>
       </div>
 
       <section className="mt-6">

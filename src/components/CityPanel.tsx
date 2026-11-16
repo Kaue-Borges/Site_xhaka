@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useAuth, canEdit } from "@/lib/auth";
 import { STATUS_META, STATUS_ORDER, type CityData, emptyCity } from "@/lib/types";
@@ -76,7 +75,6 @@ export function CityPanel({
   const updateCity = useStore((s) => s.updateCity);
   const setStatus = useStore((s) => s.setStatus);
   const toggleCheck = useStore((s) => s.toggleCheck);
-  const [fairyMoment, setFairyMoment] = useState(false);
 
   const set = (patch: Partial<CityData>) => updateCity(city.id, patch);
   const doneCount = data.checklist.filter((c) => c.done).length;
@@ -108,10 +106,7 @@ export function CityPanel({
               <button
                 key={s}
                 disabled={!editable}
-                onClick={() => {
-                  if (s === "done" && data.status !== "done") setFairyMoment(true);
-                  setStatus(city.id, s, city.name);
-                }}
+                onClick={() => setStatus(city.id, s, city.name)}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
                   data.status === s
                     ? "border-primary bg-primary/15 text-foreground"
@@ -202,17 +197,6 @@ export function CityPanel({
           </div>
         )}
       </div>
-      {fairyMoment && (
-        <div className="surprise-backdrop fixed inset-0 z-[1000] flex items-center justify-center p-4" onClick={() => setFairyMoment(false)}>
-          <div role="dialog" aria-modal="true" aria-label="Conquista concluída" className="surprise-dialog relative w-full max-w-sm rounded-3xl border border-primary/30 bg-card p-6 text-center shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <button onClick={() => setFairyMoment(false)} aria-label="Fechar conquista" className="absolute right-4 top-4 rounded-full bg-secondary p-2"><X className="h-4 w-4" /></button>
-            <img src="/images/xhaka/fadinha.webp" alt="Xhakinha em modo fadinha" className="mx-auto h-52 w-full rounded-2xl object-contain" />
-            <p className="mt-4 font-display text-xl font-bold text-primary">Modo fadinha ativado! ✨</p>
-            <p className="mt-2 text-sm text-muted-foreground">{city.name} entrou para a coleção de histórias.</p>
-            <button onClick={() => setFairyMoment(false)} className="action-primary mt-5 rounded-xl px-5 py-2.5 text-sm font-semibold">Continuar a viagem</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

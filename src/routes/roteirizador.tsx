@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useSC, optimizeRoute, routeDistance, type CityInfo } from "@/lib/cities";
 import { useStore } from "@/lib/store";
-import { SCMap } from "@/components/SCMap";
+import { SCMap, MapLegend } from "@/components/SCMap";
 import { StatusDot } from "@/components/StatusBadge";
 import { Sparkles, Plus, X, Route as RouteIcon, Clock, Gauge } from "lucide-react";
 
@@ -133,13 +133,15 @@ function Roteirizador() {
         )}
       </div>
 
-      <div className="h-[58dvh] min-h-[420px] w-full flex-none lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1">
+      <div className="relative h-[58dvh] min-h-[420px] w-full flex-none lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1">
+        {/* routeIds only outlines the chosen cities; their real status colors stay visible. */}
         <SCMap
           className="h-full w-full"
           routeCities={selected}
-          highlightIds={ids}
+          routeIds={ids}
           onSelect={(id) => (ids.includes(id) ? remove(id) : add(id))}
         />
+        <MapLegend showRoute className="absolute bottom-3 left-3 right-3 z-[500] sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[calc(100%-2.5rem)]" />
       </div>
     </div>
   );

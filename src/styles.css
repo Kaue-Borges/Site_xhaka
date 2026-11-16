@@ -90,12 +90,13 @@
   --brand-foreground: oklch(0.18 0.02 155);
   --info: oklch(0.62 0.16 250);
 
-  --status-none: oklch(0.65 0.06 170);
-  --status-planned: oklch(0.82 0.15 90);
-  --status-prep: oklch(0.72 0.16 55);
-  --status-recording: oklch(0.62 0.16 250);
-  --status-done: oklch(0.83 0.19 145);
-  --status-cancelled: oklch(0.62 0.21 22);
+  /* Same values as STATUS_HEX in src/components/SCMap.tsx */
+  --status-none: #dfe6e2;
+  --status-planned: #f5c84c;
+  --status-prep: #f08a3c;
+  --status-recording: #4f9cf5;
+  --status-done: #22d65c;
+  --status-cancelled: #e2556f;
 
   --sidebar: oklch(0.175 0.025 180);
   --sidebar-foreground: oklch(0.9 0.006 250);
@@ -193,6 +194,8 @@
 .surprise-backdrop { background: #07130ecb; backdrop-filter: blur(8px); }
 .surprise-dialog { animation: surprise-enter .25s ease-out both; }
 @keyframes surprise-enter { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.expedition-photo { box-shadow: 0 18px 45px #050f0b55; }
 
 .sc-map-scene { isolation: isolate; background: #102219; }
 .sc-map-canvas { background: transparent !important; }

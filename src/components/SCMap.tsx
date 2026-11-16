@@ -1,119 +1,33 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { useSC } from "@/lib/cities";
 import { useStore } from "@/lib/store";
-import type { CityStatus } from "@/lib/types";
+import { STATUS_META, STATUS_ORDER, type CityStatus } from "@/lib/types";
 import type { CityInfo } from "@/lib/cities";
 
+// Single source for the map fill colors. The CSS tokens --status-* in
+// styles.css use the same values, so legend dots and badges match the map.
 export const STATUS_HEX: Record<CityStatus, string> = {
-  none: "#568879",
-  planned: "#e8c65a",
-  prep: "#ef9765",
-  recording: "#8f8bf7",
-  done: "#9af27c",
-  cancelled: "#ed7891",
+  none: "#dfe6e2",
+  planned: "#f5c84c",
+  prep: "#f08a3c",
+  recording: "#4f9cf5",
+  done: "#22d65c",
+  cancelled: "#e2556f",
 };
 
-const SVG_NS = "http://www.w3.org/2000/svg";
+const BORDER_COLOR = "#0d2219";
+const EMPHASIS_COLOR = "#ffffff";
 
-function svgElement<K extends keyof SVGElementTagNameMap>(name: K): SVGElementTagNameMap[K] {
-  return document.createElementNS(SVG_NS, name);
-}
-
-// Copy Leaflet's exact SVG paths into the clip. The observer mirrors every
-// geometry update on zoom/pan, keeping the photograph and borders aligned.
-function addStatePhoto(map: L.Map, layer: L.GeoJSON, svg: SVGSVGElement, clipId: string) {
-  const municipalityGroup = svg.querySelector("g");
-  const defs = svgElement("defs");
-  const clip = svgElement("clipPath");
-  clip.id = clipId;
-  clip.setAttribute("clipPathUnits", "userSpaceOnUse");
-  const clipPaths = new Map<Element, SVGPathElement>();
-  layer.eachLayer((cityLayer) => {
-    const path = (cityLayer as L.Path).getElement();
-    if (!path) return;
-    const copy = svgElement("path");
-    copy.setAttribute("d", path.getAttribute("d") ?? "");
-    copy.setAttribute("clip-rule", "evenodd");
-    clip.appendChild(copy);
-    clipPaths.set(path, copy);
-  });
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      const copy = clipPaths.get(mutation.target as Element);
-      if (copy) copy.setAttribute("d", (mutation.target as Element).getAttribute("d") ?? "");
-    }
-  });
-  if (municipalityGroup) {
-    observer.observe(municipalityGroup, { attributes: true, subtree: true, attributeFilter: ["d"] });
-  }
-  defs.appendChild(clip);
-
-  const blurId = `${clipId}-blur`;
-  const blur = svgElement("filter");
-  blur.id = blurId;
-  blur.setAttribute("x", "-20%");
-  blur.setAttribute("y", "-20%");
-  blur.setAttribute("width", "140%");
-  blur.setAttribute("height", "140%");
-  const gaussian = svgElement("feGaussianBlur");
-  gaussian.setAttribute("stdDeviation", "10");
-  blur.appendChild(gaussian);
-  defs.appendChild(blur);
-
-  const photo = svgElement("g");
-  photo.setAttribute("clip-path", `url(#${clipId})`);
-  photo.setAttribute("pointer-events", "none");
-  const base = svgElement("rect");
-  base.setAttribute("fill", "#17362a");
-  const blurred = svgElement("image");
-  blurred.setAttribute("href", "/images/xhaka/carro-mapa.webp");
-  blurred.setAttribute("preserveAspectRatio", "xMidYMid slice");
-  blurred.setAttribute("filter", `url(#${blurId})`);
-  blurred.setAttribute("opacity", "0.7");
-  const sharp = svgElement("image");
-  sharp.setAttribute("href", "/images/xhaka/carro-mapa.webp");
-  sharp.setAttribute("preserveAspectRatio", "xMidYMid meet");
-  sharp.setAttribute("opacity", "0.96");
-  const shade = svgElement("rect");
-  shade.setAttribute("fill", "#0a2119");
-  shade.setAttribute("opacity", "0.12");
-  photo.append(base, blurred, sharp, shade);
-
-  svg.insertBefore(defs, municipalityGroup);
-  svg.insertBefore(photo, municipalityGroup);
-
-  const bounds = layer.getBounds();
-  const updatePhoto = () => {
-    const northwest = map.latLngToLayerPoint(bounds.getNorthWest());
-    const southeast = map.latLngToLayerPoint(bounds.getSouthEast());
-    const x = Math.min(northwest.x, southeast.x);
-    const y = Math.min(northwest.y, southeast.y);
-    const width = Math.abs(southeast.x - northwest.x);
-    const height = Math.abs(southeast.y - northwest.y);
-    for (const element of [base, blurred, shade]) {
-      element.setAttribute("x", String(x));
-      element.setAttribute("y", String(y));
-      element.setAttribute("width", String(width));
-      element.setAttribute("height", String(height));
-    }
-    sharp.setAttribute("x", String(x + width * 0.16));
-    sharp.setAttribute("y", String(y - height * 0.1));
-    sharp.setAttribute("width", String(width * 0.78));
-    sharp.setAttribute("height", String(height));
-  };
-  updatePhoto();
-  map.on("zoomend moveend resize viewreset", updatePhoto);
-  return () => {
-    observer.disconnect();
-    map.off("zoomend moveend resize viewreset", updatePhoto);
-  };
-}
+type CityLayer = L.Path & { feature: { properties: { id: string } } };
 
 interface Props {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** Filter: municipalities outside this list are faded (Mapa page filters). */
   highlightIds?: string[];
+  /** Municipalities chosen for a route. Outlined only; the status fill is kept. */
+  routeIds?: string[];
   routeCities?: CityInfo[];
   focusId?: string | null;
   className?: string;
@@ -123,13 +37,13 @@ export function SCMap({
   selectedId,
   onSelect,
   highlightIds,
+  routeIds,
   routeCities,
   focusId,
   className,
 }: Props) {
   const sc = useSC();
   const cities = useStore((s) => s.cities);
-  const clipId = `sc-photo-${useId().replace(/:/g, "")}`;
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.GeoJSON | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
@@ -138,19 +52,26 @@ export function SCMap({
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
+  const isEmphasized = (id: string) => selectedId === id || !!routeIds?.includes(id);
+  const isEmphasizedRef = useRef(isEmphasized);
+  isEmphasizedRef.current = isEmphasized;
+
   // Leaflet creates its paths when the GeoJSON arrives. Their first style must
-  // already contain a fill color; otherwise Leaflet falls back to the dark
-  // border color and the municipalities look invisible until hover.
+  // already contain a fill color; otherwise Leaflet falls back to the border
+  // color and the municipalities look invisible until hover.
   const styleFeature = (id: string): L.PathOptions => {
-    const status = cities[id]?.status ?? "none";
+    const fillColor = STATUS_HEX[cities[id]?.status ?? "none"];
+    if (isEmphasized(id)) {
+      // Selection / route membership only changes the outline, never the status fill.
+      return { fillColor, fillOpacity: 0.95, color: EMPHASIS_COLOR, weight: 2.6, opacity: 1 };
+    }
     const highlighted = !highlightIds || highlightIds.includes(id);
-    const selected = selectedId === id;
     return {
-      fillColor: STATUS_HEX[status],
-      fillOpacity: highlighted ? (selected ? 0.35 : 0.2) : 0.04,
-      color: selected ? "#ffffff" : "#d7f3e3",
-      weight: selected ? 2.3 : 0.85,
-      opacity: highlighted ? 0.9 : 0.55,
+      fillColor,
+      fillOpacity: highlighted ? 0.88 : 0.14,
+      color: BORDER_COLOR,
+      weight: 0.7,
+      opacity: highlighted ? 0.9 : 0.45,
     };
   };
   const styleRef = useRef(styleFeature);
@@ -169,6 +90,14 @@ export function SCMap({
     });
     mapRef.current = map;
 
+    // Keep the white outline of selected/route municipalities above neighbours.
+    const bringEmphasizedToFront = () => {
+      layerRef.current?.eachLayer((layer) => {
+        const lyr = layer as CityLayer;
+        if (isEmphasizedRef.current(lyr.feature.properties.id)) lyr.bringToFront();
+      });
+    };
+
     const layer = L.geoJSON(sc.geojson, {
       style: (feature) => styleRef.current(feature?.properties.id as string),
       onEachFeature: (feature, lyr) => {
@@ -176,11 +105,13 @@ export function SCMap({
         lyr.on({
           mouseover: (e) => {
             const t = e.target as L.Path;
-            t.setStyle({ weight: 2, color: "#ffffff", fillOpacity: 0.42, opacity: 1 });
+            // Hover keeps the status color; only the outline is highlighted.
+            t.setStyle({ weight: 2.4, color: EMPHASIS_COLOR, fillOpacity: 1, opacity: 1 });
             t.bringToFront();
           },
           mouseout: (e) => {
             (e.target as L.Path).setStyle(styleRef.current(id));
+            if (!isEmphasizedRef.current(id)) bringEmphasizedToFront();
           },
           click: () => onSelectRef.current?.(id),
         });
@@ -195,28 +126,28 @@ export function SCMap({
     layerRef.current = layer;
     routeLayerRef.current = L.layerGroup().addTo(map);
 
-    // fitBounds initializes Leaflet's SVG renderer for a map without a center.
     map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-    const svg = containerRef.current.querySelector<SVGSVGElement>(".leaflet-overlay-pane svg");
-    const removePhotoListeners = svg ? addStatePhoto(map, layer, svg, clipId) : () => {};
+    bringEmphasizedToFront();
     return () => {
-      removePhotoListeners();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
       routeLayerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sc]);
 
   // restyle on data / selection / highlight changes
   useEffect(() => {
     if (!layerRef.current) return;
-    layerRef.current.eachLayer((lyr: any) => {
-      lyr.setStyle(styleRef.current(lyr.feature.properties.id));
+    const emphasized: L.Path[] = [];
+    layerRef.current.eachLayer((layer) => {
+      const lyr = layer as CityLayer;
+      const id = lyr.feature.properties.id;
+      lyr.setStyle(styleRef.current(id));
+      if (isEmphasizedRef.current(id)) emphasized.push(lyr);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sc, cities, selectedId, highlightIds]);
+    emphasized.forEach((lyr) => lyr.bringToFront());
+  }, [sc, cities, selectedId, highlightIds, routeIds]);
 
   // draw route line + numbered markers
   useEffect(() => {
@@ -226,19 +157,22 @@ export function SCMap({
     if (!routeCities || routeCities.length < 1) return;
     const pts = routeCities.map((c) => c.center as [number, number]);
     if (pts.length > 1) {
-      L.polyline(pts, { color: "#22c55e", weight: 3, dashArray: "6 8", opacity: 0.9 }).addTo(grp);
+      // Dark under-stroke keeps the dashed line readable over light and green fills.
+      // Non-interactive so the line never steals clicks/hover from municipalities.
+      L.polyline(pts, { color: "#0b2417", weight: 5, opacity: 0.55, interactive: false }).addTo(grp);
+      L.polyline(pts, { color: "#ffffff", weight: 2.5, dashArray: "6 8", opacity: 0.95, interactive: false }).addTo(grp);
     }
     routeCities.forEach((c, i) => {
       L.marker(c.center, {
         icon: L.divIcon({
           className: "",
-          html: `<div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#22c55e;color:#0b2417;font-weight:700;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.4)">${i + 1}</div>`,
+          html: `<div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#0b2417;color:#ffffff;border:2px solid #ffffff;font-weight:700;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.45)">${i + 1}</div>`,
           iconSize: [22, 22],
           iconAnchor: [11, 11],
         }),
       }).addTo(grp);
     });
-  }, [routeCities]);
+  }, [routeCities, sc]);
 
   // focus / center on a city
   useEffect(() => {
@@ -258,6 +192,31 @@ export function SCMap({
   return (
     <div className={`sc-map-scene relative overflow-hidden ${className ?? ""}`}>
       <div ref={containerRef} className="sc-map-canvas relative z-10 h-full w-full" aria-label="Mapa interativo dos municípios de Santa Catarina" />
+    </div>
+  );
+}
+
+/** Discreet status legend shared by the Mapa and Roteirizador pages. */
+export function MapLegend({ showRoute, className }: { showRoute?: boolean; className?: string }) {
+  return (
+    <div
+      className={`flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl border border-border bg-card/95 px-3 py-2 text-[11px] shadow-[var(--shadow-elegant)] backdrop-blur ${className ?? ""}`}
+    >
+      {STATUS_ORDER.map((s) => (
+        <span key={s} className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/40"
+            style={{ background: STATUS_HEX[s] }}
+          />
+          {STATUS_META[s].label}
+        </span>
+      ))}
+      {showRoute && (
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-[3px] border-2 border-white" />
+          No roteiro
+        </span>
+      )}
     </div>
   );
 }

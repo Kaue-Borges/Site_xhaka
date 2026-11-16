@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -34,6 +34,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => { void checkSession(); }, [checkSession]);
+
+  // Mapa, Roteirizador and Dashboard all read the same store loaded from
+  // /api/state. Re-read it when switching pages or returning to the tab so
+  // changes saved elsewhere show up without reloading the browser.
+  const loggedIn = !!user;
+  const firstPath = useRef(true);
+  useEffect(() => {
+    if (!loggedIn) return;
+    if (firstPath.current) {
+      firstPath.current = false; // checkSession/login just loaded the state
+      return;
+    }
+    void useStore.getState().refreshState();
+  }, [pathname, loggedIn]);
+  useEffect(() => {
+    if (!loggedIn) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void useStore.getState().refreshState();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loggedIn]);
 
   if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Carregando sessão...</div>;
 

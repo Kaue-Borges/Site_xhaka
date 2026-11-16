@@ -17,6 +17,8 @@ interface StoreState {
   saveError: string | null;
   flushPending: () => Promise<boolean>;
   loadState: () => Promise<void>;
+  /** Re-reads /api/state (MySQL) unless there are local edits not yet saved. */
+  refreshState: () => Promise<void>;
   reset: () => void;
   getCity: (id: string) => CityData;
   updateCity: (id: string, patch: Partial<CityData>, historyText?: string) => void;
@@ -52,6 +54,10 @@ type PendingJob = {
   generation: number;
 };
 const pending = new Map<string, PendingJob>();
+// Used by refreshState to never overwrite local edits that are not saved yet.
+let writeSeq = 0;
+let queuedWrites = 0;
+const hasUnsavedWrites = () => pending.size > 0 || queuedWrites > 0;
 function clearPending() {
   for (const item of pending.values()) clearTimeout(item.timer);
   pending.clear();
@@ -61,12 +67,18 @@ function runPending(key: string) {
   if (!item) return;
   clearTimeout(item.timer);
   pending.delete(key);
+  queuedWrites++;
   queue = queue.then(async () => {
-    if (item.generation !== generation) return;
+    if (item.generation !== generation) {
+      queuedWrites--;
+      return;
+    }
     try {
       await item.job();
+      queuedWrites--;
       useStore.setState({ saveError: null });
     } catch (error) {
+      queuedWrites--;
       generation++;
       clearPending();
       const message = error instanceof Error ? error.message : "Não foi possível salvar.";
@@ -82,6 +94,7 @@ function runPending(key: string) {
 }
 function persist(key: string, job: () => Promise<unknown>) {
   if (DEMO_MODE) return;
+  writeSeq++;
   const previous = pending.get(key);
   if (previous) clearTimeout(previous.timer);
   pending.set(key, { job, generation, timer: setTimeout(() => runPending(key), 350) });
@@ -105,6 +118,23 @@ export const useStore = create<StoreState>((set, get) => ({
       meta: ProjectMeta;
     }>("/state");
     set({ ...state, saveError: null });
+  },
+  refreshState: async () => {
+    if (DEMO_MODE || hasUnsavedWrites()) return;
+    const seq = writeSeq;
+    const gen = generation;
+    try {
+      const state = await api<{
+        cities: Record<string, CityData>;
+        roteiros: Roteiro[];
+        meta: ProjectMeta;
+      }>("/state");
+      // Discard the response if the user edited something while it was loading.
+      if (seq !== writeSeq || gen !== generation || hasUnsavedWrites()) return;
+      set(state);
+    } catch (error) {
+      console.warn("Não foi possível atualizar os dados:", error);
+    }
   },
   reset: () => {
     generation++;

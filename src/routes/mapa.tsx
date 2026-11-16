@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useSC } from "@/lib/cities";
 import { useStore } from "@/lib/store";
-import { SCMap } from "@/components/SCMap";
+import { SCMap, MapLegend } from "@/components/SCMap";
 import { CityPanel } from "@/components/CityPanel";
 import { STATUS_META, STATUS_ORDER, REGIONS, type CityStatus } from "@/lib/types";
 import { StatusDot } from "@/components/StatusBadge";
@@ -116,14 +116,7 @@ function MapaPage() {
         </div>
 
         {/* legend */}
-        <div className="absolute bottom-3 left-3 right-3 z-[500] flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl border border-border bg-card/95 px-3 py-2 text-[11px] shadow-[var(--shadow-elegant)] backdrop-blur sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[calc(100%-2.5rem)]">
-          {STATUS_ORDER.map((s) => (
-            <span key={s} className="flex items-center gap-1.5">
-              <StatusDot status={s} />
-              {STATUS_META[s].label}
-            </span>
-          ))}
-        </div>
+        <MapLegend className="absolute bottom-3 left-3 right-3 z-[500] sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-[calc(100%-2.5rem)]" />
 
         <SCMap
           className="h-full w-full"
